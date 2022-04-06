@@ -1,14 +1,12 @@
-import os
 import numpy as np
 from tensorflow import keras
 from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
 
 
 ##################################################################################
 # Load data from npz file generated in generatetraindata.py
 ##################################################################################
-image_shape = (48, 48, 1)
+image_shape = (48, 48, 1)  # Define the shape that Keras will be taking in
 labels_num = 48
 
 # extract the first array
@@ -22,7 +20,7 @@ x_train, x_test, y_train, y_test = train_test_split(x_train, y_train, test_size=
 x_train = x_train / 255
 x_test = x_test / 255
 
-# Expand dimensions to ensure shapes are (32, 32, 1)
+# Expand dimensions to ensure shapes are (48, 48, 1)
 x_train = np.expand_dims(x_train, -1)
 x_test = np.expand_dims(x_test, -1)
 

@@ -4,16 +4,13 @@ import bitstring
 import cv2
 
 
-# Contains cl
+# Contains method to read the raw bitstring from a given ETL record structure
 class ETLn_Record:
     def read(self, bs, pos=None):
         if pos:
             bs.bytepos = pos * self.octets_per_record
-
         r = bs.readlist(self.bitstring)
-
         record = dict(zip(self.fields, r))
-
         self.record = {
             k: (self.converter[k](v) if k in self.converter else v)
             for k, v in record.items()
@@ -23,10 +20,13 @@ class ETLn_Record:
     def get_image(self):
         return self.record['Image Data']
 
+    # New method we added to read JIS code from a record
     def get_class(self):
         return self.record['JIS Code']
 
 
+# Contains details of how the record is structured logically.
+# Each record is 2052 bytes in length
 class ETL167_Record(ETLn_Record):
     def __init__(self):
         self.octets_per_record = 2052
@@ -53,36 +53,39 @@ class ETL167_Record(ETLn_Record):
 # Instantiates the matrix with placeholder values using 0s
 # Parameters:
 # Total records = 71959
-# X dim = 64
-# Y dim = 63
-# Classes in EBCDIC Code
+# X dim = 48
+# Y dim = 48
 training_data = np.zeros([71959, 48, 48])
 
 # Total records = 71959
+# Training labels are 1 - 48
+# Important to declare a 2nd dimension
 training_labels = np.zeros([71959, ], dtype='uint8')
 
-# Loops through ETL1C_7 to ETL1C_13 files and grabs their information into the matrix above
-label = -1
+
+label = -1  # offset to -1 because of the duplicate characters in the dataset
 rec_num = 0
 previous_class = ""
-current_index = 0
+current_index = 0  # Keeps track of the number of records that have been loaded so far.
+
+# Loops through ETL1C_7 to ETL1C_13 files and grabs their information into the matrix above
 for i in range(7, 14):
+    # Loads one of the 7 files we need
     file = 'ETL-1/ETL1C_{Number:02d}'.format(Number=i)
     bit_stream = bitstring.ConstBitStream(filename=file)
-
     etln_record = ETL167_Record()
 
+    # File 13 in ETL-1 only contains 4233 records not 11288
     if i == 13:
         rec_num = 4233
     else:
         rec_num = 11288
 
+    # Loops every record in the file
     for j in range(rec_num):
         try:
             # Grabs raw data from the record in the current index i
             raw_data = etln_record.read(bit_stream, j)
-
-            print(raw_data)
 
             # Gets the image data in that record
             raw_image = np.array(etln_record.get_image().getdata()).reshape(63, 64).astype("float32")
@@ -94,12 +97,12 @@ for i in range(7, 14):
                 for x in range(x_size):
                     training_data[current_index, y, x] = image_data[y, x]
 
-            # Gets the image type in EBCDIC form
+            # Gets the image type in JIS form
             current_class = etln_record.get_class()
 
-            # Assigns the EBCDIC code in the class
+            # Assigns a label to the image
             if current_class == 'b4' and i != 7:
-                training_labels[current_index, ] = 3
+                training_labels[current_index, ] = 3  # Duplicate label must assign manually
             elif current_class == 'b2' and i != 7:
                 training_labels[current_index, ] = 1
             elif current_class == 'b3' and i != 7:
@@ -116,11 +119,12 @@ for i in range(7, 14):
                     if previous_class != current_class:
                         label += 1
 
+                # Assigns the label to the label matrix
                 training_labels[current_index, ] = label
 
             current_index += 1
         except bitstring.ReadError:
-            # Should only have 2 empty records: 33863 and 67727
+            # ETL-1 contains 2 records that are empty located at 33863 and 67727
             print("Empty record found in: " + str(previous_class))
             pass
 
